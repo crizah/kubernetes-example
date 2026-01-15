@@ -34,11 +34,11 @@ spec:
             value: "/api"
           - name: SECURE
             value: "false"
-          - name: CLIENT_IP
-            valueFrom:
-              secretKeyRef:
-                name: backend-secrets
-                key: CLIENT_IP
+          # - name: CLIENT_IP
+          #   valueFrom:
+          #     secretKeyRef:
+          #       name: backend-secrets
+          #       key: CLIENT_IP
           
           
 
