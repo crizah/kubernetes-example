@@ -43,7 +43,7 @@ spec:
     spec:
       containers:
       - name: server
-        image: shaizah/kube:web-kube-v2
+        image: shaizah/kube:web-kube-v3
         ports:
         - containerPort: 80
         env:

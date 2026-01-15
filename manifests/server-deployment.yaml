@@ -16,7 +16,7 @@ spec:
     spec:
       containers:
       - name: server
-        image: shaizah/kube:server-kube-v3
+        image: shaizah/kube:server-kube-v4
         ports:
         - containerPort: 8081
         env:
