@@ -1,187 +1,253 @@
-# Kubernetes Sample: my-k8s-ingress-app
+<!-- # Kubernetes Sample: my-k8s-ingress-app
 
 A small example showing how to expose a frontend and backend service through on k3s (or any Kubernetes cluster with an Ingress controller running on bare metal).  
 This repo contains Kubernetes manifests (Ingress, Deployments/Services examples) and instructions so you can run the app locally or deploy it on your own cluster.
 
-Important: everywhere the manifests used `myapp.local` in examples, replace that with your own host value. In these docs we use the placeholder `MY_APP_HOST` replace it with a real hostname (the extrenal ip of your cluster)
+### Important: everywhere the manifests used `myapp.local` in examples, replace that with your own host value. In these docs we use the placeholder `MY_APP_HOST` replace it with a real hostname (the extrenal ip of your cluster)
 
 Note: If you are running this on minikube without a driver set to none, this will not work
 
+## Structure
 
 - manifests:
   - ingress.yaml                      (single Ingress for frontend + API, references MY_APP_HOST)
-  - server-deployment.yaml           (example backend deployment; sets COOKIE_SECURE via env)
+  - server-deployment.yaml            (example backend deployment; sets COOKIE_SECURE via env)
   - frontend-deployment.yaml          (example frontend deployment; sets BACKEND_URL env)
   - server-service.yaml               (service for server)
   - frontend-service.yaml             (service for frontend)
   - server-secrets.yaml               (server secrets)
 
+The ingress file routes all traffic from /api to port 8081 (where the server is running), and the rest to port 80 (where the frontend is running)
 
-<!-- 
-What this demonstrates
-- Use one Ingress to route:
-  - /api -> backend-service:8081  (server)
-  - / -> frontend-service:80       (client)
-- Strip the `/api` prefix for the backend using a Traefik middleware (so backend routes remain `/login`, `/profile`, etc.)
-- Local dev and production HTTPS options
-- How to configure cookies securely when behind an ingress (X-Forwarded-Proto or env var) -->
-
-<!-- Before you start (choose one workflow)
-- Local development (fast, no DNS): use a hostname you map in `/etc/hosts` or use nip.io and optional mkcert for local TLS.
-- Real cluster / public domain: use cert-manager + Let's Encrypt or your normal production certificate provisioning. -->
-
-Prerequisites
+## Prerequisites
 - kubectl configured to talk to your k8s cluster (any bare metal cluster)
 - A running Ingress controller
 
-Pick and replace the hostname
+### Pick and replace the hostname
 - Replace `MY_APP_HOST` in the manifests with the hostname you want to use.
-  - Local example using hosts file: `MY_APP_HOST=myapp.local`
-  - nip.io example (no hosts file edit): `MY_APP_HOST=myapp.<NODE_IP>.nip.io`
-  - Public domain example: `MY_APP_HOST=app.example.com`
+  - Run the following. Replace with your ingress controller (ingress-nginx, traefik)
 
-Quick commands to replace the placeholder locally (example):
-- Using envsubst (POSIX shell):
-  export MY_APP_HOST="myapp.local"
-  envsubst < ingress-single.yaml.template > ingress-single.yaml
-- Or a simple sed:
-  sed "s/MY_APP_HOST/myapp.local/g" ingress-single.yaml.template > ingress-single.yaml
+   ```
+   kubectl -n kube-system get svc <ingress-controller>
 
-NOTE: The repo may contain YAMLs with the placeholder `MY_APP_HOST`. Replace it before applying.
+   ```
+  - Use the `EXTRENAL_IP` in place of `MY_APP_HOST` (in ingress.yaml) or add it in `/etc/hosts`
 
-Local dev (HTTP only, quick)
-If you don't want to set up TLS and are OK with insecure cookies in dev:
 
-1) Make cookies non-secure in dev (only for development)
-- Either set an environment variable on the backend pod so the server uses Secure=false for cookies, or update the code to consider an env var (recommended).
-  Example (patch deployment):
-  kubectl set env deployment/backend-deployment COOKIE_SECURE=false
 
-2) Ensure frontend calls send cookies
-- If frontend is same origin (served by same host), BACKEND_URL="/api" works.
-- For fetch: fetch('/api/login', { credentials: 'include', ... })
-- For axios: axios.post('/api/login', data, { withCredentials: true })
+The application running on it requires cookies and should be ran over HTTPS, for the purpose of demonstration, Secure is set to `false`. 
 
-3) Apply the manifests
-- Replace the host placeholder as described above, then:
-  kubectl apply -f middleware-strip-api.yaml
-  kubectl apply -f ingress-single.yaml
-  kubectl apply -f backend-deployment.yaml
+
+## Apply the manifests
+
+### Replace the host placeholder as described above, then:
+ ```
+  kubectl apply -f server-secrets.yaml
+  kubectl apply -f server-service.yaml
+  kubectl apply -f server-deployment.yaml
+  kubectl apply -f ffrontend-service.yaml
   kubectl apply -f frontend-deployment.yaml
+  kubectl apply -f ingress.yaml
+  ```
 
-4) If using a custom local hostname (myapp.local), map it to the node IP in your /etc/hosts:
-  sudo -- sh -c 'echo "192.168.1.100 myapp.local" >> /etc/hosts'
-  Replace 192.168.1.100 with the node / loadbalancer IP reachable from your machine.
+The frontend will be running on your `https://MY_APP_HOST/` or whatever you set the host to be in `ingress.yaml`
 
-5) Test (HTTP)
-- From your machine (after /etc/hosts or nip.io):
-  curl -v -H "Host: MY_APP_HOST" http://<TRAefik-IP>/api/login
-  or open: http://MY_APP_HOST/  (frontend)
+### How it works
 
-Local dev (HTTPS, recommended for realistic testing)
-Use mkcert to create a certificate trusted by your local machine and let Traefik terminate TLS.
+The react app is set to have a runtime enviornment variable for the `BACKEND_URL` which is inserted in `frontend-deployment.yaml` with enviornment variable. The enviornment variable is a runtime one, and is inserted via an entrypoint. Because this uses ingress, CORS does not need to be handeled as the requests are all made from the same IP.
 
-1) Install mkcert (https://github.com/FiloSottile/mkcert) and create a cert:
-  mkcert -install
-  mkcert MY_APP_HOST
-  → produces: MY_APP_HOST.pem and MY_APP_HOST-key.pem
 
-2) Create a TLS secret in Kubernetes:
-  kubectl create secret tls myapp-tls --cert=MY_APP_HOST.pem --key=MY_APP_HOST-key.pem -n default
+!(How ingress works)[images/image.png]
 
-3) Update / replace Ingress to include TLS (example snippet in the repo), and ensure annotation uses `websecure` entrypoint:
-  spec:
-    tls:
-    - hosts:
-      - MY_APP_HOST
-      secretName: myapp-tls
-  metadata.annotations:
-    traefik.ingress.kubernetes.io/router.entrypoints: websecure
-    traefik.ingress.kubernetes.io/router.middlewares: default-strip-api@kubernetescrd
+< paragraph about how ingress works>
+< paragraphs describing each file>
 
-4) Apply the manifests:
-  kubectl apply -f middleware-strip-api.yaml
-  kubectl apply -f ingress-single.yaml
-  ...
+ -->
 
-5) Access the site:
-  https://MY_APP_HOST/
-  Your browser will trust the mkcert cert and cookies set with Secure=true will work if your Go code sets Secure when X-Forwarded-Proto == "https" or if COOKIE_SECURE=true.
 
-Production / public domain (Let's Encrypt + cert-manager)
-1) Install cert-manager in the cluster (recommended by cert-manager docs).
-2) Deploy an Issuer / ClusterIssuer for Let's Encrypt (staging first, then production).
-3) Add the `tls` section to the Ingress and annotate for cert-manager if necessary (cert-manager will create and populate the TLS secret).
-4) Ensure DNS for MY_APP_HOST points to your cluster's external IP / load balancer.
-5) Configure your backend to always set Secure cookies (COOKIE_SECURE=true) or detect X-Forwarded-Proto.
 
-Example cert-manager-enabled Ingress snippet:
-  annotations:
-    cert-manager.io/cluster-issuer: "letsencrypt-prod"
-    traefik.ingress.kubernetes.io/router.entrypoints: websecure
-  spec:
-    tls:
-    - hosts:
-      - MY_APP_HOST
-      secretName: myapp-tls
 
-Make cookies work correctly (server-side)
-- If Traefik terminates TLS and forwards to the pod over HTTP, r.TLS will be nil and your app must trust `X-Forwarded-Proto` to determine whether the original request was HTTPS.
-- Recommended server behavior (pseudocode):
-  - If env COOKIE_SECURE == "true" then set cookies Secure=true
-  - Else if r.Header.Get("X-Forwarded-Proto") == "https" then Secure=true
-  - Else Secure=false
-- For production, set COOKIE_SECURE=true in the backend Deployment.
 
-Example kubectl commands to set env in Deployment
-- Set COOKIE_SECURE (production)
-  kubectl set env deployment/backend-deployment COOKIE_SECURE=true
+# Kubernetes Sample: my-k8s-ingress-app
 
-- Set BACKEND_URL in frontend (if using a deployment manifest instead of builtin config)
-  kubectl set env deployment/frontend-deployment BACKEND_URL="/api"
+A practical example demonstrating how to expose frontend and backend services through Kubernetes Ingress on bare metal clusters (k3s, kubeadm, etc.).
 
-Traefik notes
-- The repo uses Traefik Middleware CRDs (traefik.containo.us/v1alpha1) for replacePathRegex. Verify CRDs exist:
-  kubectl get crd | grep traefik.containo.us
-- If you do not run Traefik or your controller doesn't support the same CRDs, adapt the rewrite behavior to your ingress controller (or modify the server to accept `/api` paths).
+This repository contains all the Kubernetes manifests and setup instructions needed to deploy a full-stack application with proper routing using an Ingress controller.
 
-Testing & debugging
-- List ingresses:
-  kubectl get ingress -A
-- Describe ingress:
-  kubectl describe ingress my-ingress -n default
-- Check Traefik service and external IP:
-  kubectl -n kube-system get svc traefik
-- Check nodes for IP:
-  kubectl get nodes -o wide
-- Inspect headers hitting your backend (temporary): log `r.Header` to ensure `X-Forwarded-Proto` is present.
+## Overview
 
-Security notes
-- Never run with Secure=false in production. Secure=false sends cookies over plain HTTP and is vulnerable to interception.
-- Use SameSite settings appropriate to your case. For cross-site cookies you may need SameSite=None + Secure (HTTPS required).
-- Prefer TLS termination at the ingress and enabling Secure cookie flag in production.
+The app consists of:
+- **Frontend**: React application served on port 80
+- **Backend**: Go REST API running on port 8081
+- **Ingress**: Single entry point routing `/api/*` to backend, everything else to frontend
 
-Frequently used commands (summary)
-- Apply manifests:
-  kubectl apply -f middleware-strip-api.yaml
-  kubectl apply -f ingress-single.yaml
-  kubectl apply -f backend-deployment.yaml
-  kubectl apply -f frontend-deployment.yaml
+### Why Ingress?
 
-- Patch environment for local dev:
-  kubectl set env deployment/backend-deployment COOKIE_SECURE=false
+Using Ingress instead of NodePort services means:
+- Single external IP for the entire application
+- No CORS configuration needed (all requests appear to come from the same origin)
+- Cleaner URLs without port numbers
+- Production-ready setup that works the same way cloud providers handle routing
 
-- Create TLS secret from local certs:
-  kubectl create secret tls myapp-tls --cert=MY_APP_HOST.pem --key=MY_APP_HOST-key.pem -n default
+## Prerequisites
 
-- Verify ingress:
-  kubectl describe ingress my-ingress -n default
+- A Kubernetes cluster (k3s, kubeadm, or any bare metal setup)
+- `kubectl` configured to access your cluster
+- An Ingress controller installed (nginx-ingress, Traefik, etc.)
 
-Need help customizing for your cluster?
-- Tell me:
-  - Which Ingress controller do you use (Traefik built-in k3s, nginx-ingress, other)?
-  - Do you want local mkcert TLS or cert-manager/Let's Encrypt?
-  - The hostname you plan to use (or if you'd prefer nip.io)
-I can produce ready-to-apply manifests (with MY_APP_HOST replaced), exact kubectl commands, and the small Go cookie snippet to reliably detect HTTPS behind Traefik.
+**Important**: If using minikube, set the driver to `none` or use `minikube tunnel`
 
-Enjoy — and keep Secure=true in production!
+## Setup Instructions
+
+### 1. Find Your Ingress Controller's External IP
+Replace `<ingress-controller>` with your controller name (ingress-nginx, traefik)
+
+```
+kubectl -n kube-system get svc <ingress-controller>
+```
+
+Look for the `EXTERNAL-IP` column. This is what you'll use as your application host.
+
+### 2. Update the Manifests
+
+In `ingress.yaml`, replace `MY_APP_HOST` with your external IP or domain:
+
+```yaml
+rules:
+  - host: 192.168.1.100  # Your EXTERNAL-IP 
+```
+
+Alternatively, add an entry to `/etc/hosts` for local testing and use it in `ingress.yaml`
+
+### 3. Deploy the Application
+
+Apply the manifests in this order:
+
+```bash
+kubectl apply -f server-secrets.yaml
+kubectl apply -f server-service.yaml
+kubectl apply -f server-deployment.yaml
+kubectl apply -f frontend-service.yaml
+kubectl apply -f frontend-deployment.yaml
+kubectl apply -f ingress.yaml
+```
+
+### 4. Verify Deployment
+
+check all pods are running
+```
+kubectl get pods
+```
+
+### 5. Access the Application
+
+Open your browser and navigate to:
+
+```
+http://YOUR_EXTERNAL_IP
+```
+
+Or if using `/etc/hosts`:
+
+```
+http://myapp.local
+```
+
+## How It Works
+
+### Ingress Routing
+
+The Ingress acts as a reverse proxy, routing requests based on path:
+
+```
+User Request              Ingress Routes To
+──────────────────────   ────────────────────────
+GET  /                 → app-service:80 (frontend)
+GET  /login            → app-service:80 (frontend)
+POST /api/signup       → server-service:8081 (backend)
+POST /api/login        → server-service:8081 (backend)
+GET  /api/profile      → server-service:8081 (backend)
+```
+
+
+### No CORS Required
+
+Since both frontend and backend are accessed through the same host (via Ingress), the browser sees all requests as same-origin. This eliminates CORS complexity entirely.
+
+### Runtime Configuration
+
+The frontend uses a runtime environment variable for the backend URL, set via `BACKEND_URL="/api"` in the deployment. This is injected at container startup through an entrypoint script, allowing the same image to work across different environments without rebuilding.
+
+## File Breakdown
+
+### `ingress.yaml`
+Defines routing rules. All `/api/*` requests go to the backend on port 8081, everything else goes to the frontend on port 80.
+
+### `frontend-deployment.yaml`
+Deploys 2 replicas of the React app. Sets `BACKEND_URL="/api"` so the app knows where to send API requests.
+
+### `frontend-service.yaml`
+ClusterIP service exposing the frontend pods on port 80. The Ingress routes to this service for non-API requests.
+
+### `server-deployment.yaml`
+Deploys 2 replicas of the backend API. Key environment variables:
+- `MONGODB_URI`, `JWT_SECRET`: Loaded from secrets
+- `WITH_INGRESS="/api"`: Tells the backend to expect requests at `/signup` instead of `/api/signup`
+- `SECURE="false"`: Disables secure cookie requirements (for HTTP testing; set to `"true"` in production with HTTPS)
+
+### `server-service.yaml`
+ClusterIP service exposing the backend pods on port 8081. The Ingress routes all `/api/*` requests here.
+
+### `server-secrets.yaml`
+Stores sensitive backend configuration 
+
+## Production Considerations
+
+Before deploying to production:
+
+1. **Enable HTTPS**: Set up TLS certificates and change `SECURE="true"` in server deployment
+2. **Use real secrets**: Update `server-secrets.yaml` with actual credentials (don't commit them to git)
+3. **Add TLS to Ingress**: Configure cert-manager or manual certificates
+4. **Review CORS**: If you add additional frontends on different domains, configure CORS appropriately
+5. **Resource limits**: Add CPU/memory limits to deployments
+6. **Health checks**: Add liveness and readiness probes to deployments
+
+
+**Getting 404 errors?**
+Verify the host header matches what's in your ingress:
+```bash
+curl -H "Host: YOUR_HOST" http://YOUR_EXTERNAL_IP
+```
+
+## Architecture Diagram
+
+```
+                                    ┌─────────────┐
+                                    │   Browser   │
+                                    └──────┬──────┘
+                                           │
+                                           │ http://myapp.local
+                                           ▼
+                                    ┌─────────────┐
+                                    │   Ingress   │
+                                    │ Controller  │
+                                    └──────┬──────┘
+                                           │
+                         ┌─────────────────┴─────────────────┐
+                         │                                   │
+                    /api/* routes                      /* routes
+                         │                                   │
+                         ▼                                   ▼
+              ┌──────────────────┐              ┌──────────────────┐
+              │ server-service   │              │  app-service     │
+              │  port: 8081      │              │  port: 80        │
+              └────────┬─────────┘              └────────┬─────────┘
+                       │                                 │
+           ┌───────────┴───────────┐         ┌──────────┴──────────┐
+           ▼                       ▼         ▼                     ▼
+    ┌────────────┐         ┌────────────┐   ┌────────────┐ ┌────────────┐
+    │  Backend   │         │  Backend   │   │  Frontend  │ │  Frontend  │
+    │   Pod 1    │         │   Pod 2    │   │   Pod 1    │ │   Pod 2    │
+    └────────────┘         └────────────┘   └────────────┘ └────────────┘
+```
+
