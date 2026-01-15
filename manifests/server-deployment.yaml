@@ -16,7 +16,7 @@ spec:
     spec:
       containers:
       - name: server
-        image: shaizah/kube:server-kube-v4
+        image: shaizah/kube:server-kube-v6
         ports:
         - containerPort: 8081
         env:
@@ -30,11 +30,16 @@ spec:
               secretKeyRef:
                 name: backend-secrets
                 key: JWT_SECRET
+          - name: WITH_INGRESS
+            value: "/api"
+          - name: SECURE
+            value: "false"
           - name: CLIENT_IP
             valueFrom:
               secretKeyRef:
                 name: backend-secrets
                 key: CLIENT_IP
+          
           
 
  

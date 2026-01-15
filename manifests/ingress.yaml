@@ -1,72 +1,29 @@
-# # apiVersion: networking.k8s.io/v1
-# # kind: Ingress
-# # metadata:
-# #   name: my-ingress
-# #   annotations:
-# #     nginx.ingress.kubernetes.io/rewrite-target: /
-# # spec:
-# #   rules:
-# #   - host: myapp.local  # map this to minikubes ip
-# #     http:
-# #       paths:
-# #       - path: /api 
-# #         pathType: Prefix
-# #         backend:
-# #           service:
-# #             name: server-service  # map all apis to 8081 and the rest to 80
-# #             port:
-# #               number: 8081
-# #       - path: /
-# #         pathType: Prefix
-# #         backend:
-# #           service:
-# #             name: app-service  # frontend
-# #             port:
-# #               number: 80
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: my-ingress
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
+spec:
+  rules:
+  - host: MY_APP_HOST  # replace this, needs to be the extrenal ip, ingresses (traefik) extrenal ip
+    http:
+      paths:
+      - path: /api 
+        pathType: Prefix
+        backend:
+          service:
+            name: server-service  # map all /api to 8081 and the rest to 80
+            port:
+              number: 8081
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: app-service  # frontend
+            port:
+              number: 80
 
 
 
 
-# apiVersion: networking.k8s.io/v1
-# kind: Ingress
-# metadata:
-#   name: my-ingress
-#   annotations:
-#     nginx.ingress.kubernetes.io/rewrite-target: /$2
-#     nginx.ingress.kubernetes.io/use-regex: "true"
-# spec:
-#   ingressClassName: nginx
-#   rules:
-#   - host: myapp.local  # Keep this
-#     http:
-#       paths:
-#       - path: /api(/|$)(.*)
-#         pathType: ImplementationSpecific
-#         backend:
-#           service:
-#             name: server-service
-#             port:
-#               number: 8081
-#       - path: /(.*)
-#         pathType: ImplementationSpecific
-#         backend:
-#           service:
-#             name: app-service
-#             port:
-#               number: 80
-#   - http:  # Add this - no host specified (catch-all)
-#       paths:
-#       - path: /api(/|$)(.*)
-#         pathType: ImplementationSpecific
-#         backend:
-#           service:
-#             name: server-service
-#             port:
-#               number: 8081
-#       - path: /(.*)
-#         pathType: ImplementationSpecific
-#         backend:
-#           service:
-#             name: app-service
-#             port:
-#               number: 80
